@@ -1,0 +1,24 @@
+#!/bin/bash
+function cmd_packages()
+{
+	make package/feeds/packages/$1/{clean,configure,compile,install} V=99
+}
+
+function cmd_hammer()
+{
+	make package/feeds/hammer/$1/{clean,configure,compile,install} V=99
+}
+function cmd_patch()
+{
+	make package/feeds/packages/$1/{clean,prepare} V=99 QUILT=1
+
+}
+function cmd_publish()
+{
+	make V=99 package/index
+}
+function cmd_()
+{
+	echo "$0 hammer|packages|publish <name>"
+}
+cmd_$1 $2
