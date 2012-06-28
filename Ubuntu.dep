@@ -1,0 +1,1 @@
+DEPS="binutils build-essential patch flex gettext unzip pkg-config libz-dev linux-headers-$(uname -r) subversion"
