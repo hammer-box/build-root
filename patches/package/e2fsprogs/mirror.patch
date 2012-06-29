@@ -1,0 +1,12 @@
+--- Makefile.orig	2012-06-29 08:14:57.202496530 +0700
++++ Makefile	2012-06-29 08:03:25.633799850 +0700
+@@ -13,7 +13,7 @@
+ PKG_RELEASE:=1
+ 
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+-PKG_SOURCE_URL:=@SF/e2fsprogs
++PKG_SOURCE_URL:=http://heanet.dl.sourceforge.net/project/e2fsprogs/e2fsprogs/v1.42.4/e2fsprogs-1.42.4.tar.gz
+ 
+ PKG_BUILD_DEPENDS:=util-linux
+ PKG_INSTALL:=1
+
