@@ -31,15 +31,33 @@ OPTIONS:
 	-v			Verbose 
 "
 }
+function create_model()
+{
+	local -i line=$( cat $MODEL/.config | grep -n "# Package features" | cut -d':' -f1 )
+	(( line++ ))
+	head -n $line $MODEL/.config > $MODEL.model	
+}
+function create_package_conf()
+{
+	local -i totLines=$( wc -l $MODEL/.config | cut -d' ' -f1 )
+	local -i line=$( cat $MODEL/.config | grep -n "# Package features" | cut -d':' -f1 )
+	local -i tailAt=0
+	(( tailAt=$totLines - $line +1 ))
+	tail -n $tailAt $MODEL/.config > packages.config
+
+}
 function search_patches()
 {
 	local files=( $(find patches -iname *.patch -type f | cut -d'/' -f2-99 ) )
 
 	for f in ${files[@]}
 	do
-		cd $BASE_DIR/$MODEL/${f%\/*}
-		patch -sN -p0 < $BASE_DIR/patches/$f
-		cd $BASE_DIR
+		if [ -d $BASE_DIR/$MODEL/${f%\/*} ]
+		then
+			cd $BASE_DIR/$MODEL/${f%\/*}
+			patch -sN -p0 < $BASE_DIR/patches/$f
+			cd $BASE_DIR
+		fi
 	done
 	
 }
@@ -82,12 +100,7 @@ function update_source()
 	svn update -r $SELECTED_REVISION $MODEL
 	copy_essentials
 }
-function create_config()
-{	
-	local model=$1
-	cat $model/.config | grep TARGET > $model.model
-	cat $PACKAGES_CONFIG_FILE >> $model.model
-}
+
 function copy_config()
 {
 	if [[ $YES == true ]]
@@ -150,7 +163,7 @@ architecture, then your model. After that exit and save your configuration"
 		make menuconfig
 		make defconfig
 		cd ..
-		create_config $MODEL
+		create_model
 		copy_config
 		start_build
 		
@@ -165,6 +178,8 @@ function main_menu()
 		do
 			case $conf in 
 			"Custom" )
+				echo "Disabled"
+				return 1
 				custom_build
 			break
 			;;
@@ -211,9 +226,16 @@ function model_menu()
 	while true 
 			do
 				PS3="$MODEL@$SELECTED_REVISION >"
-				select opt in "Full Build" "Update" "copy stuff" "Clean" "Select Revision" "set J" "Advanced" "Back"
+				select opt in "Full Build" "Update" "Patch" "copy stuff" "Clean" "Select Revision" "set J" "Advanced" "Set packages.config" "Back"
 				do
 					case $opt in 
+					"Set packages.config" )
+						echo "disabled"
+						break
+						;;
+						create_package_conf
+						break
+						;;
 					"copy stuff" )
 						search_copy
 						break
@@ -256,14 +278,14 @@ function model_menu()
 								if [[ $YES == true ]]
 								then
 									checkout_source
-									search_copy
+							#		search_copy
 									start_build
 								else
 									read -i "y" -p "Do you want to checkout openwrt source tree ? [y/n]: " answer
 									if [ $answer = "y" ]
 									then
 										checkout_source
-										search_copy
+								#		search_copy
 										start_build
 									fi
 								fi
@@ -277,27 +299,31 @@ function model_menu()
 						read -i "y" -p "Type in the openwrt svn revision you want: " SELECTED_REVISION
 						break
 						;;
+					"Patch" )
+						search_patches
+						break
+						;;
 					"Update" )
 						svn_status=$( svn info $MODEL )
-						echo "Notice $(pwd)/$MODEL does not contain openwrt source"
 						if [ $? = 0 ]
 						then 
 							while true
 							do
 								if [[ $YES == true ]]
 								then
-									checkout_source
+									update_source
 								else
-									read -i "y" -p "Do you want to checkout openwrt source tree ? [y/n]: " answer
+									read -i "y" -p "Do you want to update openwrt source tree ? [y/n]: " answer
 									if [ $answer = "y" ]
 									then
-										checkout_source
+										update_source
 									fi
 								fi
 								break
 							done
 						else
-							update_source
+							echo "Notice $(pwd)/$MODEL does not contain openwrt source"
+							checkout_source
 						fi
 						break
 						;;
