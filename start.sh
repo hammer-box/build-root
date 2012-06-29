@@ -233,9 +233,9 @@ function model_menu()
 						echo "disabled"
 						break
 						;;
-						create_package_conf
-						break
-						;;
+					#	create_package_conf
+					#	break
+					#	;;
 					"copy stuff" )
 						search_copy
 						break
