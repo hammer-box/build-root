@@ -1,6 +1,7 @@
 #!/bin/bash
 source /etc/lsb-release
 source $DISTRIB_ID.dep
+BASE_DIR=$(pwd)
 PACKAGES_CONFIG_FILE=packages.config
 PREVIOUS_REVISION=32467
 LOCAL_REVISION=
@@ -29,6 +30,28 @@ OPTIONS:
 	-y			Assume yes on all questions
 	-v			Verbose 
 "
+}
+function search_patches()
+{
+	local files=( $(find patches -iname *.patch -type f | cut -d'/' -f2-99 ) )
+
+	for f in ${files[@]}
+	do
+		cd $BASE_DIR/$MODEL/${f%\/*}
+		patch -sN -p0 < $BASE_DIR/patches/$f
+		cd $BASE_DIR
+	done
+	
+}
+function search_copy()
+{
+	local files=( $(find copy  -type f | cut -d'/' -f2-99 ) )
+
+	for f in ${files[@]}
+	do
+		mkdir -p $BASE_DIR/$MODEL/${f%\/*}
+		cp -av $BASE_DIR/copy/$f $BASE_DIR/$MODEL/$f
+	done
 }
 function install_dependencies()
 {
@@ -69,13 +92,15 @@ function copy_config()
 {
 	if [[ $YES == true ]]
 	then
-		cp -f $MODEL.model $MODEL/.model
+		cp -fa $MODEL.model $MODEL/.config
 	else
-		cp -i $MODEL.model $MODEL/.model
+		cp -ia $MODEL.model $MODEL/.config
 	fi
 }
+
 function copy_essentials()
 {
+	mkdir -p $MODEL/files
 	if [[ $YES == true ]]
 	then
 		cp -f feeds.conf $MODEL/
@@ -90,11 +115,16 @@ function copy_essentials()
 	then
 		copy_config
 	fi
+	
 	cd $MODEL
 	scripts/feeds update -a
+	cd ..
+	search_patches
+	cd $MODEL
 	scripts/feeds install -a
 	scripts/feeds install -p hammer nginx
 	cd ..
+	search_copy
 }
 function start_build()
 {
@@ -131,11 +161,15 @@ function main_menu()
 	while true
 	PS3="Main Menu: "
 	do
-		select conf in "Custom" ${CONFIGS[@]} "Install dependencies" "help" "quit"
+		select conf in "Custom" ${CONFIGS[@]} "Install dependencies" "toggle verbose" "help" "quit"
 		do
 			case $conf in 
 			"Custom" )
 				custom_build
+			break
+			;;
+		"toggle verbose" )
+			VERBOSE=1
 			break
 			;;
 			"Install dependencies" )
@@ -177,14 +211,22 @@ function model_menu()
 	while true 
 			do
 				PS3="$MODEL@$SELECTED_REVISION >"
-				select opt in "Full Build" "Update" "Clean" "Select Revision" "Advanced" "Back"
+				select opt in "Full Build" "Update" "copy stuff" "Clean" "Select Revision" "set J" "Advanced" "Back"
 				do
 					case $opt in 
+					"copy stuff" )
+						search_copy
+						break
+						;;
+					"set J" )
+						read -p "Set the number of make threads, 1 is safe 2+ is faster but can fail. Current value is $J: "  J
+						break
+						;;
 					"Full Build" )
 						svn_status=$( svn info $MODEL )
 						if [ $? = 0 ]
 						then
-							LOCAL_REVISION=$( echo $svn_status  | grep Revision | cut -d" " -f2 )
+							LOCAL_REVISION=$( echo "$svn_status"  | grep Revision | cut -d" " -f2 )
 							if [[ $LOCAL_REVISION != $SELECTED_REVISION ]]
 							then
 								echo "Notice: Your local openwrt revision ( $LOCAL_REVISION ) does not match the selected revision ( $SELECTED_REVISION )"
@@ -195,7 +237,7 @@ function model_menu()
 										update_source
 										start_build
 									else
-										read -p "Do you want to update to $SELECTED_REVISION ? [y/n]: " answer
+										read -i "y" -p "Do you want to update to $SELECTED_REVISION ? [y/n]: " answer
 										if [ $answer = "y" ]
 										then
 											update_source
@@ -204,6 +246,8 @@ function model_menu()
 									fi
 									break
 								done
+							else
+								start_build
 							fi
 						else
 							echo "Notice $(pwd)/$MODEL does not contain openwrt source"
@@ -212,12 +256,14 @@ function model_menu()
 								if [[ $YES == true ]]
 								then
 									checkout_source
+									search_copy
 									start_build
 								else
-									read -p "Do you want to checkout openwrt source tree ? [y/n]: " answer
+									read -i "y" -p "Do you want to checkout openwrt source tree ? [y/n]: " answer
 									if [ $answer = "y" ]
 									then
 										checkout_source
+										search_copy
 										start_build
 									fi
 								fi
@@ -228,7 +274,7 @@ function model_menu()
 					break 
 					;;
 					"Select Revision" )
-						read -p "Type in the openwrt svn revision you want: " SELECTED_REVISION
+						read -i "y" -p "Type in the openwrt svn revision you want: " SELECTED_REVISION
 						break
 						;;
 					"Update" )
@@ -242,7 +288,7 @@ function model_menu()
 								then
 									checkout_source
 								else
-									read -p "Do you want to checkout openwrt source tree ? [y/n]: " answer
+									read -i "y" -p "Do you want to checkout openwrt source tree ? [y/n]: " answer
 									if [ $answer = "y" ]
 									then
 										checkout_source
@@ -256,7 +302,7 @@ function model_menu()
 						break
 						;;
 					"Clean" )
-						read -p "Do you want permanently remove $( pwd )/$MODEL ? [y/n]: " answer
+						read -i "y" -p "Do you want permanently remove $( pwd )/$MODEL ? [y/n]: " answer
 						if [ $answer = "y" ]
 						then
 							rm -rf $( pwd )/$MODEL 
